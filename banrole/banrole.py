@@ -7,7 +7,7 @@ import asyncio
 
 
 class BanRole():
-    """Allows banning and unbanning users by role"""
+    """Allows banning, unbanning, and kicking users by role"""
     def __init__(self, bot):
         self.bot = bot
         self.fp = os.path.join("data", "banrole", "bans.json")
@@ -87,6 +87,41 @@ class BanRole():
         if server.id not in self.banlist:
             self.banlist[server.id] = {}
         dataIO.save_json(self.fp, self.banlist)
+        
+       
+    @commands.command(no_pm=True, pass_context=True)
+    @checks.admin_or_permissions(ban_members=True)
+    async def kickrole(self, ctx, *, role: str):
+        """Kicks all members with the specified role.
+        Make sure the bot's role is higher in the role
+        hierarchy than the role you want it to kick"""
+        server = ctx.message.server
+        roles = [r for r in server.roles if r.name == role]
+        if len(roles) == 0:
+            await self.bot.say("That role doesn't exist!")
+            return
+        members_to_kick = [m for m in server.members if roles[0] in m.roles]
+        kick_count = 0
+        total_count = len(members_to_kick)
+        msg = await self.bot.say("{}/{} members kicked".format(kick_count, total_count))
+        for member in members_to_kick:
+            try:
+                await self.bot.ban(member)
+            except discord.Forbidden:
+                await self.bot.say("I'm not allowed to do that.")
+                return
+            except Exception as e:
+                print(e)
+                await self.bot.say("An error occured. Check your console or logs for details")
+                return
+            else:
+                kick_count += 1
+                msg = await self.bot.edit_message(msg, "{}/{} members kicked".format(kick_count, total_count))
+                if roles[0].id not in self.banlist[server.id]:
+                    self.banlist[server.id][roles[0].id] = []
+                self.banlist[server.id][roles[0].id].append(member.id)
+        dataIO.save_json(self.fp, self.banlist)
+        await self.bot.say("Done kicking members")
 
 
 def check_folder():
